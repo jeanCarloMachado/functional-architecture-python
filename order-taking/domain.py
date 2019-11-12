@@ -1,5 +1,5 @@
 from typing import NewType, Union, NamedTuple, Tuple, List, Any, Callable, TypeVar, Generic
-from functools import reduce
+from functools import reduce, partial
 from shared import Command, NonEmptyList
 
 # this module is the place order workflow
@@ -73,29 +73,24 @@ class ProductCode:
         self._code = code
 
 
-ValidateOrder = Callable[['UnvalidatedOrder'], Union['ValidatedOrder', 'ValidationError']]
 CheckProductExists = Callable[[ProductCode], bool]
 CheckAddressExists = Callable[['UnvalidatedAddress'], 'ValidatedAddress']
 
 
-class ValidateOrderImplementation:
-    def __init__(self):
-        self.check_product_exists: CheckProductExists = lambda x: True
-        self.check_address_exists: CheckAddressExists = lambda x: ValidatedAddress
+def validate_order(check_product_exists: CheckProductExists, check_address_exists: CheckAddressExists, order: UnvalidatedOrder) -> Union['ValidatedOrder', 'ValidationError']:
+    for order_line in order.order_lines.value:
+        if not check_product_exists(order_line[2]):
+            return ValidationError('order_line', 'order line is not valid')
 
-    def validate(self, order: UnvalidatedOrder) -> Union['ValidatedOrder', 'ValidationError']:
-        for order_line in order.order_lines.value:
-            if not self.check_product_exists(order_line[2]):
-                return ValidationError('order_line', 'order line is not valid')
+    if not check_address_exists(order.billing_address):
+        return ValidationError('billing_address', 'billing_address is not valid')
 
-        if not self.check_address_exists(order.billing_address):
-            return ValidationError('billing_address', 'billing_address is not valid')
+    if not check_address_exists(order.shipping_address):
+        return ValidationError('billing_address', 'shipping_address is not valid')
 
-        if not self.check_address_exists(order.shipping_address):
-            return ValidationError('billing_address', 'shipping_address is not valid')
+    return ValidatedOrder(order.order_id, order.customer_info, order.billing_address, order.shipping_address, order.order_lines)
 
-        return ValidatedOrder(order.order_id, order.customer_info, order.billing_address, order.shipping_address, order.order_lines)
-
+validate_order_injected = partial(validate_order, lambda x: True, lambda x: ValidatedAddress)
 
 UnvalidatedAddress = Address
 ValidatedAddress = NewType('ValidatedAddress', Address)
@@ -108,7 +103,7 @@ my_order = UnvalidatedOrder(
     NonEmptyList([(UnitQuantity(6), Price(321), ProductCode('Wabc')),
                   (UnitQuantity(6), Price(123), ProductCode('Wabc'))]))
 
-validated_order = ValidateOrderImplementation().validate(my_order)
+validated_order = validate_order_injected(my_order)
 # look at the call stack start annotating the functions that are most used
 # the right approach between an unccess type and an exception is semantical, also the rate of errors is important
 # if is inherent in the design that things can fail you should treat as a separate type otherwise, is if some obscure edge
