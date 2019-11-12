@@ -1,39 +1,63 @@
 from typing import NewType, Union, NamedTuple, Tuple, List, Any, Callable, TypeVar, Generic
+from functools import reduce
+from shared import Command, NonEmptyList
+
 # this module is the place order workflow
 
-# PlaceOrder is a function type
-PlaceOrder = Callable[['UnvalidatedOrder'], 'PlaceOrderEvents']
+OrderTakingCommand = Union['PlaceOrder', 'ChangeOrder', 'CancelOrder']
+ChangeOrder = Command[Any]
+CancelOrder = Command[Any]
+PlaceOrder = Command['UnvalidatedOrder']
 
+# PlaceOrder workflow - is a function type
+PlaceOrderWorkFlow = Callable[[PlaceOrder], 'PlaceOrderEvents']
 PlaceOrderEvents = Union['AcknowledgementSent', 'OrderPlaced', 'BillableOrderPlaced']
+
 AcknowledgementSent = Any
 OrderPlaced = Any
 BillableOrderPlaced = Any
 
-ValidateOrder = Callable[['UnvalidatedOrder'], Union['ValidatedOrder', 'ValidationError']]
 
-ValidatedOrder = NewType("ValidatedOrder", 'UnvalidatedOrder')
 ValidationError = NamedTuple('ValidationError', [('field_name', str), ('description', str)])
 
-GenericType = TypeVar('GenericType')
+OrderId = NewType('OrderId', str)
 
+UnvalidatedOrder = NamedTuple('UnvalidatedOrder', [
+    ('order_id', OrderId),
+    ('customer_info', 'CustomerInfo'),
+    ('billing_address', 'Address'),
+    ('shipping_address', 'Address'),
+    ('order_lines', NonEmptyList['OrderLine']),
+])
 
-class NonEmptyList(Generic[GenericType]):
-    def __init__(self, x: List[GenericType]):
-        if not x:
-            raise BaseException("List cannot be empty")
-        self.value = x
+ValidatedOrder = NamedTuple('ValidatedOrder', [
+    ('order_id', OrderId),
+    ('customer_info', 'CustomerInfo'),
+    ('billing_address', 'Address'),
+    ('shipping_address', 'Address'),
+    ('order_lines', NonEmptyList['OrderLine']),
+])
 
+PricedOrder = NamedTuple('PricedOrder', [
+    ('order_id', OrderId),
+    ('customer_info', 'CustomerInfo'),
+    ('billing_address', 'Address'),
+    ('shipping_address', 'Address'),
+    ('order_lines', NonEmptyList['OrderLine']),
+    ('amount_to_bill', 'Price'),
+])
 
-class UnvalidatedOrder:
-    def __init__(self, info: 'CustomerInfo', order_lines: NonEmptyList['OrderLine']):
-        self.info = info
-        self.order_lines = order_lines
+Order = Union[UnvalidatedOrder, ValidatedOrder, PricedOrder]
 
+# @property
+# def price(self) -> 'Price':
+#     return Price(reduce(lambda a, b: a + int(b[1]), self.order_lines.value, 0))
 
+OrderLine = Tuple['OrderQuantity', 'Price', 'ProductCode']
+CustomerInfo = NamedTuple('CustomerInfo', [('name', str)])
+Address = NewType('Address', str)
 
-
-OrderLine = Tuple['OrderQuantity', 'ProductCode']
-CustomerInfo = NamedTuple('CustomerInfo', [('name', str), ('address', Any)])
+Price = NewType('Price', float)
 
 # algebra of typesystems is something we all can benefit for having more
 # what is a type?
@@ -50,11 +74,21 @@ class ProductCode:
         self._code = code
 
 
+
+
+ValidateOrder = Callable[['UnvalidatedOrder'], Union['ValidatedOrder', 'ValidationError']]
+CheckProductExists = Callable[[ProductCode], bool]
+CheckAddressExists = Callable[['UnvalidatedAddress'], 'ValidatedAddress']
+UnvalidatedAddress = Address
+ValidatedAddress = NewType('ValidatedAddress', Address)
+
 # tuples are good when there's no meaning added to the list composition
 
 # end of model - just using the code above
-my_order = UnvalidatedOrder(CustomerInfo(name="foo", address=None),
-                            NonEmptyList([(UnitQuantity(6), ProductCode('Wabc'))]))
+my_order = UnvalidatedOrder(
+    OrderId("666"), CustomerInfo(name="foo"),Address(''), Address(''),
+    NonEmptyList([(UnitQuantity(6), Price(321), ProductCode('Wabc')),
+                  (UnitQuantity(6), Price(123), ProductCode('Wabc'))]))
 
 # look at the call stack start annotating the functions that are most used
 # the right approach between an unccess type and an exception is semantical, also the rate of errors is important
