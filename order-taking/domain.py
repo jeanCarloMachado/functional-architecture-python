@@ -17,7 +17,6 @@ AcknowledgementSent = Any
 OrderPlaced = Any
 BillableOrderPlaced = Any
 
-
 ValidationError = NamedTuple('ValidationError', [('field_name', str), ('description', str)])
 
 OrderId = NewType('OrderId', str)
@@ -74,8 +73,6 @@ class ProductCode:
         self._code = code
 
 
-
-
 ValidateOrder = Callable[['UnvalidatedOrder'], Union['ValidatedOrder', 'ValidationError']]
 CheckProductExists = Callable[[ProductCode], bool]
 CheckAddressExists = Callable[['UnvalidatedAddress'], 'ValidatedAddress']
@@ -86,7 +83,7 @@ ValidatedAddress = NewType('ValidatedAddress', Address)
 
 # end of model - just using the code above
 my_order = UnvalidatedOrder(
-    OrderId("666"), CustomerInfo(name="foo"),Address(''), Address(''),
+    OrderId("666"), CustomerInfo(name="foo"), Address(''), Address(''),
     NonEmptyList([(UnitQuantity(6), Price(321), ProductCode('Wabc')),
                   (UnitQuantity(6), Price(123), ProductCode('Wabc'))]))
 
